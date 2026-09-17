@@ -54,12 +54,28 @@ tuner --no-autoplay          do not resume the last station
 
 ## Files
 
-- `~/.config/tuner/stations.tsv` — name, url, genre, favourite; editable by hand
-- `~/.config/tuner/config.properties` — volume, equalizer curve, last station
+The station list lives in the source tree as `stations.tsv` — tab separated,
+`name`, `url`, `genre`, `favourite`, with `#` comments. Forty-one stations ship
+in it (SomaFM, Radio Paradise, FIP, KEXP, NTS, WFMU, Radio Swiss, Classic FM
+and others). Edit it to change the defaults everyone gets.
 
-Forty-one stations ship by default (SomaFM, Radio Paradise, FIP, KEXP, NTS,
-WFMU, Radio Swiss, Classic FM and others). Add your own with `a`, or paste any
-stream url ffmpeg can open — MP3, AAC, Icecast, Shoutcast or HLS.
+At startup the list is resolved in this order:
+
+| | |
+|---|---|
+| `$TUNER_STATIONS` | if set, this file is used and written to, nothing else is consulted |
+| `~/.config/tuner/stations.tsv` | your own copy, created the first time you add, delete, favourite or sort from inside the app |
+| `stations.tsv` in the source tree | the shipped default, found next to the working directory or above the jar |
+| `stations.tsv` inside the jar | same file, bundled at build time, so a jar copied elsewhere still has stations |
+
+Edits made in the app always go to the user copy, so the source tree file stays
+pristine. Delete `~/.config/tuner/stations.tsv` to go back to the shipped list.
+Press `?` in the app to see which file is in use.
+
+Volume, equalizer curve and last station are kept separately in
+`~/.config/tuner/config.properties`. Both paths honour `XDG_CONFIG_HOME`.
+
+Any stream url ffmpeg can open works — MP3, AAC, Icecast, Shoutcast or HLS.
 
 ## How it works
 
