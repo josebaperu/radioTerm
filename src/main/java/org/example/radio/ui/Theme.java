@@ -16,6 +16,8 @@ public final class Theme {
     public static final int C_ALERT = 203;
     public static final int C_SELECT_BG = 236;
     public static final int C_WHITE = 231;
+    public static final int C_SELECT_FILL = 250;
+    public static final int C_SELECT_GUIDE = 244;
 
     public static final int TEXT = Style.fg(C_TEXT);
     public static final int MUTED = Style.fg(C_MUTED);
@@ -29,6 +31,9 @@ public final class Theme {
     public static final int ALERT = Style.bold(Style.fg(C_ALERT));
     public static final int TITLE = Style.bold(Style.fg(C_WHITE));
     public static final int SELECTED = Style.bold(Style.of(C_WHITE, C_SELECT_BG));
+    /** The equalizer band under the cursor: white, so it stands out of the heat ramp. */
+    public static final int SELECT_HANDLE = Style.bold(Style.fg(C_WHITE));
+    public static final int SELECT_GUIDE = Style.fg(C_SELECT_GUIDE);
     public static final int SELECTED_DIM = Style.of(C_MUTED, C_SELECT_BG);
 
     /** Blue to red ramp used by the spectrum and the equalizer handles. */

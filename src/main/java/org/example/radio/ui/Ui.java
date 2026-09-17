@@ -33,32 +33,56 @@ public final class Ui {
             return;
         }
 
-        int eqRows = h >= 34 ? 9 : h >= 28 ? 7 : 5;
-        int eqPanelH = eqRows + 4;
-        int mainTop = 2;
-        int mainBottom = h - 2 - eqPanelH;
-        int mainH = Math.max(6, mainBottom - mainTop);
+        Layout layout = layout(h);
         int leftW = Math.max(26, Math.min(42, w * 38 / 100));
         int rightX = leftW + 1;
         int rightW = w - leftW - 1;
-        int nowPlayingH = mainH >= 15 ? 9 : 7;
+        int mainH = layout.mainH();
+        int nowPlayingH = mainH >= 15 ? 9 : mainH >= 11 ? 7 : Math.max(5, mainH - 5);
+        int spectrumH = mainH - nowPlayingH;
+        if (spectrumH < 3) {
+            // Too short for a spectrum; give the rows to the now playing panel.
+            nowPlayingH = mainH;
+            spectrumH = 0;
+        }
 
         drawHeader(s, app, w);
-        drawStations(s, app, 0, mainTop, leftW, mainH);
-        drawNowPlaying(s, app, rightX, mainTop, rightW, nowPlayingH);
-        drawSpectrum(s, app, rightX, mainTop + nowPlayingH, rightW, mainH - nowPlayingH);
-        drawEqualizer(s, app, 0, mainTop + mainH, w, eqPanelH, eqRows);
+        drawStations(s, app, 0, layout.mainTop(), leftW, mainH);
+        drawNowPlaying(s, app, rightX, layout.mainTop(), rightW, nowPlayingH);
+        if (spectrumH >= 3) drawSpectrum(s, app, rightX, layout.mainTop() + nowPlayingH, rightW, spectrumH);
+        drawEqualizer(s, app, 0, layout.eqTop(), w, layout.eqPanelH(), layout.eqRows());
         drawStatus(s, app, h - 2, w);
         drawFooter(s, app, h - 1, w);
         if (app.showHelp()) drawHelp(s, app, w, h);
     }
 
+    /**
+     * Vertical geometry. The equalizer owns the bottom half of the body, the
+     * station list and meters share the top half.
+     *
+     * @param mainTop   first row of the upper half
+     * @param mainH     height of the upper half
+     * @param eqTop     first row of the equalizer panel
+     * @param eqPanelH  height of the equalizer panel, including its border
+     * @param eqRows    slider rows inside it, always odd so 0 dB sits centred
+     */
+    private record Layout(int mainTop, int mainH, int eqTop, int eqPanelH, int eqRows) {
+    }
+
+    private static Layout layout(int height) {
+        int body = Math.max(8, height - 4);
+        int eqPanelH = Math.max(7, body / 2);
+        int eqRows = eqPanelH - 4;
+        if (eqRows % 2 == 0) eqRows--;
+        eqRows = Math.max(3, eqRows);
+        int mainH = body - eqPanelH;
+        return new Layout(2, mainH, 2 + mainH, eqPanelH, eqRows);
+    }
+
     /** Number of station rows the current layout offers; used for scrolling. */
     public static int stationRows(int height) {
         if (height < MIN_HEIGHT) return 1;
-        int eqRows = height >= 34 ? 9 : height >= 28 ? 7 : 5;
-        int mainH = Math.max(6, (height - 2 - (eqRows + 4)) - 2);
-        return Math.max(1, mainH - 2);
+        return Math.max(1, layout(height).mainH() - 2);
     }
 
     private static void drawTooSmall(Screen s, int w, int h) {
@@ -209,8 +233,7 @@ public final class Ui {
             s.putClipped(ix, row + 3, station.url(), iw, Theme.FAINT);
         }
 
-        int meterRow = y + h - 2;
-        drawMeters(s, p, ix, meterRow, iw, h >= 9);
+        if (h >= 7) drawMeters(s, p, ix, y + h - 2, iw, h >= 9);
     }
 
     private static void drawMeters(Screen s, Player p, int x, int y, int w, boolean twoRows) {
@@ -314,26 +337,30 @@ public final class Ui {
             // Keep a cut or boost off the zero line so small moves stay visible.
             if (gain != 0 && handleRow == zeroRow) handleRow += gain > 0 ? -1 : 1;
 
+            int fillStyle = selected ? Style.fg(Theme.C_SELECT_FILL)
+                    : bypassed ? Theme.LINE : Style.fg(Theme.C_ACCENT_SOFT);
             for (int r = 0; r < rows; r++) {
                 int ry = top + r;
                 if (ry == zeroRow) continue;
                 boolean between = (ry > handleRow && ry < zeroRow) || (ry < handleRow && ry > zeroRow);
-                if (!between) continue;
-                for (int i = 0; i < handleW; i++) {
-                    s.set(cx + i, ry, '▒', bypassed ? Theme.LINE : Style.fg(Theme.C_ACCENT_SOFT));
+                if (between) {
+                    for (int i = 0; i < handleW; i++) s.set(cx + i, ry, '▒', fillStyle);
+                } else if (selected && ry != handleRow) {
+                    // Faint guide so the whole selected column reads as active.
+                    s.set(cx + handleW / 2, ry, '│', Theme.SELECT_GUIDE);
                 }
             }
 
             double heat = (gain + Equalizer.MAX_GAIN_DB) / (2.0 * Equalizer.MAX_GAIN_DB);
-            int handleStyle = bypassed ? Style.fg(Theme.C_FAINT) : Style.bold(Style.fg(Theme.heat(heat)));
-            if (selected) handleStyle = Style.reverse(handleStyle);
+            int handleStyle = selected ? Theme.SELECT_HANDLE
+                    : bypassed ? Style.fg(Theme.C_FAINT) : Style.bold(Style.fg(Theme.heat(heat)));
             for (int i = 0; i < handleW; i++) {
                 s.set(cx + i, handleRow, '█', handleStyle);
             }
 
             String label = Equalizer.LABELS[b];
             int labelX = trackX + b * colW + Math.max(0, (colW - label.length()) / 2);
-            s.put(labelX, top + rows, label, selected ? Style.reverse(Theme.ACCENT_BOLD) : Theme.MUTED);
+            s.put(labelX, top + rows, label, selected ? Theme.SELECT_HANDLE : Theme.MUTED);
 
             String value = signed(gain);
             int valueX = trackX + b * colW + Math.max(0, (colW - value.length()) / 2);
