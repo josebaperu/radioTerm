@@ -14,6 +14,10 @@ public final class Ansi {
     public static final String ALT_SCREEN_ON = CSI + "?1049h";
     public static final String ALT_SCREEN_OFF = CSI + "?1049l";
 
+    /** Button and drag tracking, reported in SGR form so wide terminals work. */
+    public static final String MOUSE_ON = CSI + "?1000h" + CSI + "?1002h" + CSI + "?1006h";
+    public static final String MOUSE_OFF = CSI + "?1006l" + CSI + "?1002l" + CSI + "?1000l";
+
     public static String moveTo(int row, int col) {
         return CSI + row + ";" + col + "H";
     }

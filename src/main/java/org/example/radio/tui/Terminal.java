@@ -24,12 +24,16 @@ public final class Terminal implements AutoCloseable {
     private int height = 24;
     private long lastSizeCheck;
 
-    public Terminal() {
+    private final boolean mouseEnabled;
+
+    public Terminal(boolean enableMouse) {
+        this.mouseEnabled = enableMouse;
         savedMode = stty("-g");
         stty("raw", "-echo", "-ixon");
         out.print(Ansi.ALT_SCREEN_ON);
         out.print(Ansi.HIDE_CURSOR);
         out.print(Ansi.CLEAR_SCREEN);
+        if (mouseEnabled) out.print(Ansi.MOUSE_ON);
         out.flush();
         refreshSize(true);
 
@@ -104,6 +108,7 @@ public final class Terminal implements AutoCloseable {
             Integer raw = poll(40);
             if (raw == null) return Key.of(Key.Type.ESCAPE);
             int code = raw;
+            if (code == '<') return readMouseReport();
             switch (code) {
                 case 'A': return Key.of(Key.Type.UP);
                 case 'B': return Key.of(Key.Type.DOWN);
@@ -134,6 +139,54 @@ public final class Terminal implements AutoCloseable {
             return Key.NONE;
         }
         return Key.of(Key.Type.ESCAPE);
+    }
+
+    /**
+     * Decodes an SGR mouse report, {@code CSI < button ; col ; row M|m}.
+     * Bit 5 of the button marks motion, bit 6 marks the wheel, and the final
+     * character is {@code M} for press and {@code m} for release.
+     */
+    private Key readMouseReport() {
+        StringBuilder fields = new StringBuilder();
+        char terminator = 0;
+        Integer c;
+        while ((c = poll(40)) != null) {
+            if (c == 'M' || c == 'm') {
+                terminator = (char) (int) c;
+                break;
+            }
+            fields.append((char) (int) c);
+        }
+        if (terminator == 0) return Key.NONE;
+
+        String[] parts = fields.toString().split(";");
+        if (parts.length != 3) return Key.NONE;
+        try {
+            int flags = Integer.parseInt(parts[0]);
+            int x = Integer.parseInt(parts[1]) - 1;
+            int y = Integer.parseInt(parts[2]) - 1;
+            boolean motion = (flags & 32) != 0;
+            boolean wheel = (flags & 64) != 0;
+            int button = flags & 3;
+
+            MouseEvent.Button which;
+            if (wheel) {
+                which = button == 0 ? MouseEvent.Button.WHEEL_UP : MouseEvent.Button.WHEEL_DOWN;
+            } else {
+                which = switch (button) {
+                    case 0 -> MouseEvent.Button.LEFT;
+                    case 1 -> MouseEvent.Button.MIDDLE;
+                    case 2 -> MouseEvent.Button.RIGHT;
+                    default -> MouseEvent.Button.NONE;
+                };
+            }
+            MouseEvent.Action action = terminator == 'm'
+                    ? MouseEvent.Action.RELEASE
+                    : motion ? MouseEvent.Action.DRAG : MouseEvent.Action.PRESS;
+            return Key.ofMouse(new MouseEvent(x, y, which, action));
+        } catch (NumberFormatException e) {
+            return Key.NONE;
+        }
     }
 
     /** Assembles a UTF-8 code point from the byte stream (BMP only). */
@@ -169,6 +222,7 @@ public final class Terminal implements AutoCloseable {
     public synchronized void close() {
         if (closed) return;
         closed = true;
+        if (mouseEnabled) out.print(Ansi.MOUSE_OFF);
         out.print(Ansi.RESET);
         out.print(Ansi.SHOW_CURSOR);
         out.print(Ansi.ALT_SCREEN_OFF);

@@ -8,6 +8,7 @@ import org.example.radio.config.Settings;
 import org.example.radio.model.Station;
 import org.example.radio.model.StationLibrary;
 import org.example.radio.tui.Key;
+import org.example.radio.tui.MouseEvent;
 import org.example.radio.tui.Screen;
 import org.example.radio.tui.Terminal;
 import org.example.radio.ui.Ui;
@@ -26,6 +27,7 @@ public final class RadioApp {
 
     private static final long FRAME_MS = 40;
     private static final long MESSAGE_MS = 4000;
+    private static final long DOUBLE_CLICK_MS = 450;
 
     private final Path configDir = configDirectory();
     private final Settings settings = new Settings(configDir.resolve("config.properties"));
@@ -46,6 +48,9 @@ public final class RadioApp {
     private long tick;
     private String message = "";
     private long messageAt;
+    private int draggingBand = -1;
+    private int lastClickRow = -1;
+    private long lastClickAt;
 
     public static int run(String[] args) {
         RadioApp app = new RadioApp();
@@ -125,6 +130,7 @@ public final class RadioApp {
     private int start(String[] args) {
         String playQuery = null;
         boolean autoplay = settings.getBool("autoplay", true);
+        boolean mouse = settings.getBool("mouse", true);
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "-h", "--help" -> {
@@ -142,6 +148,7 @@ public final class RadioApp {
                     if (i + 1 < args.length) playQuery = args[++i];
                 }
                 case "--no-autoplay" -> autoplay = false;
+                case "--no-mouse" -> mouse = false;
                 default -> {
                     System.err.println("unknown option: " + args[i]);
                     printUsage();
@@ -171,7 +178,7 @@ public final class RadioApp {
             if (idx >= 0) initial = library.get(idx);
         }
 
-        Terminal terminal = new Terminal();
+        Terminal terminal = new Terminal(mouse);
         Runtime.getRuntime().addShutdownHook(new Thread(terminal::close));
         Screen screen = new Screen();
         try {
@@ -228,6 +235,7 @@ public final class RadioApp {
                   -l, --list            print the station list and exit
                   -p, --play <what>     tune a station by number, name or stream url
                       --no-autoplay     start without resuming the last station
+                      --no-mouse        disable mouse reporting for this run
                   -h, --help            show this help
 
                 stations:  stations.tsv in the source tree, overridden by
@@ -250,7 +258,7 @@ public final class RadioApp {
             if (now >= nextFrame) {
                 nextFrame = now + FRAME_MS;
                 tick++;
-                clampSelection(screen.height());
+                clampSelection(screen.width(), screen.height());
                 StringBuilder out = new StringBuilder(8192);
                 Ui.render(screen, this);
                 screen.render(out);
@@ -260,6 +268,10 @@ public final class RadioApp {
     }
 
     private void handleKey(Key key) {
+        if (key.type() == Key.Type.MOUSE) {
+            handleMouse(key.mouse());
+            return;
+        }
         if (mode != Mode.NORMAL) {
             handleInputMode(key);
             return;
@@ -350,6 +362,90 @@ public final class RadioApp {
             handleEqualizerKey(key);
         } else {
             handleStationKey(key);
+        }
+    }
+
+    /** Clicks, wheel and drags, mapped onto the panel under the pointer. */
+    private void handleMouse(MouseEvent event) {
+        if (showHelp) {
+            if (event.action() == MouseEvent.Action.PRESS) showHelp = false;
+            return;
+        }
+        if (mode != Mode.NORMAL) return;
+
+        if (event.action() == MouseEvent.Action.RELEASE) {
+            draggingBand = -1;
+            return;
+        }
+        // A drag that started on a slider keeps following the pointer vertically,
+        // even once it leaves the column.
+        if (event.action() == MouseEvent.Action.DRAG && draggingBand >= 0) {
+            int gain = Ui.gainAtRow(lastHeight, event.y());
+            if (gain != Integer.MIN_VALUE) player.equalizer().setGain(draggingBand, gain);
+            return;
+        }
+
+        Ui.Hit hit = Ui.hitTest(lastWidth, lastHeight, event.x(), event.y());
+        if (event.isWheel()) {
+            handleWheel(event, hit);
+            return;
+        }
+        if (event.button() != MouseEvent.Button.LEFT || event.action() != MouseEvent.Action.PRESS) return;
+
+        switch (hit.zone()) {
+            case STATION_ROW -> clickStation(hit.index());
+            case EQ_BAND -> {
+                focus = Focus.EQUALIZER;
+                if (hit.index() >= 0) {
+                    eqBand = hit.index();
+                    if (hit.value() != Integer.MIN_VALUE) {
+                        player.equalizer().setGain(eqBand, hit.value());
+                        draggingBand = eqBand;
+                    }
+                }
+            }
+            case VOLUME -> {
+                player.setVolume(hit.value());
+                note("volume " + player.volume() + "%");
+            }
+            case NONE -> { }
+        }
+    }
+
+    private void handleWheel(MouseEvent event, Ui.Hit hit) {
+        int direction = event.button() == MouseEvent.Button.WHEEL_UP ? 1 : -1;
+        switch (hit.zone()) {
+            case STATION_ROW -> {
+                focus = Focus.STATIONS;
+                moveSelection(-direction);
+            }
+            case EQ_BAND -> {
+                focus = Focus.EQUALIZER;
+                if (hit.index() >= 0) eqBand = hit.index();
+                Equalizer eq = player.equalizer();
+                eq.setGain(eqBand, eq.gain(eqBand) + direction);
+            }
+            case VOLUME -> {
+                player.adjustVolume(direction * 5);
+                note("volume " + player.volume() + "%");
+            }
+            case NONE -> { }
+        }
+    }
+
+    /** Single click selects, a second click on the same row tunes in. */
+    private void clickStation(int rowOffset) {
+        int index = scroll + rowOffset;
+        if (index < 0 || index >= visible.size()) return;
+        focus = Focus.STATIONS;
+        selected = index;
+        long now = System.currentTimeMillis();
+        if (index == lastClickRow && now - lastClickAt < DOUBLE_CLICK_MS) {
+            tuneSelected();
+            lastClickRow = -1;
+        } else {
+            lastClickRow = index;
+            lastClickAt = now;
         }
     }
 
@@ -572,8 +668,10 @@ public final class RadioApp {
     }
 
     private int lastHeight = 24;
+    private int lastWidth = 80;
 
-    private void clampSelection(int height) {
+    private void clampSelection(int width, int height) {
+        lastWidth = width;
         lastHeight = height;
         int rows = Ui.stationRows(height);
         if (selected < scroll) scroll = selected;

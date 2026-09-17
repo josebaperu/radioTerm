@@ -20,6 +20,9 @@ public final class Ui {
     private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss");
     public static final int MIN_WIDTH = 62;
     public static final int MIN_HEIGHT = 18;
+    private static final int VOLUME_BAR_X = 5;
+    private static final int VOLUME_BAR_W = 16;
+    private static final int EQ_TRACK_X = 6;
 
     private Ui() {
     }
@@ -34,7 +37,7 @@ public final class Ui {
         }
 
         Layout layout = layout(h);
-        int leftW = Math.max(26, Math.min(42, w * 38 / 100));
+        int leftW = stationPanelWidth(w);
         int rightX = leftW + 1;
         int rightW = w - leftW - 1;
         int mainH = layout.mainH();
@@ -77,6 +80,63 @@ public final class Ui {
         eqRows = Math.max(3, eqRows);
         int mainH = body - eqPanelH;
         return new Layout(2, mainH, 2 + mainH, eqPanelH, eqRows);
+    }
+
+    /** Regions the pointer can land on. */
+    public enum Zone { NONE, STATION_ROW, EQ_BAND, VOLUME }
+
+    /**
+     * @param zone  what was clicked
+     * @param index station row offset within the visible window, or band number
+     * @param value volume percentage, or the gain the pointed row represents
+     *              ({@link Integer#MIN_VALUE} when the row carries no gain)
+     */
+    public record Hit(Zone zone, int index, int value) {
+        public static final Hit NONE = new Hit(Zone.NONE, -1, Integer.MIN_VALUE);
+    }
+
+    private static int stationPanelWidth(int width) {
+        return Math.max(26, Math.min(42, width * 38 / 100));
+    }
+
+    /** Maps a pointer position onto the interface. */
+    public static Hit hitTest(int width, int height, int x, int y) {
+        if (width < MIN_WIDTH || height < MIN_HEIGHT) return Hit.NONE;
+        Layout l = layout(height);
+
+        if (y == height - 2 && x >= VOLUME_BAR_X && x < VOLUME_BAR_X + VOLUME_BAR_W) {
+            int percent = (int) Math.round((x - VOLUME_BAR_X) * 100.0 / (VOLUME_BAR_W - 1));
+            return new Hit(Zone.VOLUME, -1, Math.max(0, Math.min(100, percent)));
+        }
+        if (x < stationPanelWidth(width) && y > l.mainTop() && y < l.mainTop() + l.mainH() - 1) {
+            return new Hit(Zone.STATION_ROW, y - l.mainTop() - 1, Integer.MIN_VALUE);
+        }
+        if (y >= l.eqTop() && y < l.eqTop() + l.eqPanelH()) {
+            int colW = Math.max(3, (width - 8) / Equalizer.BANDS);
+            int band = -1;
+            if (x >= EQ_TRACK_X && x < EQ_TRACK_X + colW * Equalizer.BANDS) {
+                band = Math.min(Equalizer.BANDS - 1, (x - EQ_TRACK_X) / colW);
+            }
+            return new Hit(Zone.EQ_BAND, band, gainAtRow(height, y));
+        }
+        return Hit.NONE;
+    }
+
+    /**
+     * Gain represented by a screen row inside the slider area, clamped at the
+     * ends so a drag that runs past the panel still pins to a limit.
+     */
+    public static int gainAtRow(int height, int y) {
+        if (height < MIN_HEIGHT) return Integer.MIN_VALUE;
+        Layout l = layout(height);
+        int top = l.eqTop() + 1;
+        int rows = l.eqRows();
+        if (y < l.eqTop() || y >= l.eqTop() + l.eqPanelH()) return Integer.MIN_VALUE;
+        if (y < top) return Equalizer.MAX_GAIN_DB;
+        if (y >= top + rows) return -Equalizer.MAX_GAIN_DB;
+        double step = (2.0 * Equalizer.MAX_GAIN_DB) / (rows - 1);
+        int gain = (int) Math.round(Equalizer.MAX_GAIN_DB - (y - top) * step);
+        return Math.max(-Equalizer.MAX_GAIN_DB, Math.min(Equalizer.MAX_GAIN_DB, gain));
     }
 
     /** Number of station rows the current layout offers; used for scrolling. */
@@ -313,7 +373,7 @@ public final class Ui {
         s.box(x, y, w, h, title, border, focused ? Theme.ACCENT_BOLD : Theme.MUTED);
 
         int gutter = x + 1;
-        int trackX = x + 6;
+        int trackX = x + EQ_TRACK_X;
         int trackW = w - 8;
         int colW = Math.max(3, trackW / Equalizer.BANDS);
         int top = y + 1;
@@ -377,7 +437,7 @@ public final class Ui {
         Player p = app.player();
         int x = 1;
         x = s.put(x, y, "VOL ", Theme.MUTED);
-        int barW = 16;
+        int barW = VOLUME_BAR_W;
         int filled = (int) Math.round(p.volume() / 100.0 * barW);
         for (int i = 0; i < barW; i++) {
             boolean on = i < filled && !p.isMuted();
@@ -443,9 +503,13 @@ public final class Ui {
                 "  e                 bypass on or off      r          reset to flat",
                 "  < / >             preamp ±1 dB",
                 "",
+                "MOUSE",
+                "  click             select a row or band; click a row twice to tune in",
+                "  wheel             over the list scrolls, over a band or the volume bar adjusts",
+                "  drag              a slider follows the pointer; shift-drag selects text",
+                "",
                 "SOUND",
                 "  + / -             volume                m          mute",
-                "",
                 "  q                 quit",
                 "",
                 "STATIONS FILE",

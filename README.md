@@ -52,12 +52,24 @@ The launcher builds the jar on first run, then starts the app in your terminal.
 | `?` | key help |
 | `q` | quit |
 
+| Mouse | |
+|---|---|
+| click | select a station row, or pick an equalizer band |
+| click twice | tune in to the row under the pointer |
+| wheel | scrolls the list, or nudges the band or volume under the pointer |
+| drag | a slider follows the pointer, even outside its column |
+
+Mouse tracking means the terminal stops handling plain drag-to-select; hold
+shift to select text as usual, or start with `--no-mouse` (or `mouse=false` in
+the config) to leave the mouse to your terminal entirely.
+
 ## Command line
 
 ```
 tuner --list                 print the stations
 tuner --play "FIP Jazz"      tune by name, list number, or stream url
 tuner --no-autoplay          do not resume the last station
+tuner --no-mouse             leave the mouse to the terminal
 ```
 
 ## Stations
