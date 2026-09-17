@@ -1,0 +1,47 @@
+# tuner station list
+# name<TAB>url<TAB>genre<TAB>favorite(0/1)
+#
+# This file ships with the source and is the default list. Your own edits
+# (from inside the app, or by hand) go to ~/.config/tuner/stations.tsv,
+# which takes precedence over this one when it exists.
+SomaFM Groove Salad	https://ice1.somafm.com/groovesalad-128-mp3	ambient / chill	1
+SomaFM Drone Zone	https://ice1.somafm.com/dronezone-128-mp3	ambient	0
+SomaFM Deep Space One	https://ice1.somafm.com/deepspaceone-128-mp3	space ambient	0
+SomaFM Lush	https://ice1.somafm.com/lush-128-mp3	vocal chill	0
+SomaFM Secret Agent	https://ice1.somafm.com/secretagent-128-mp3	spy lounge	0
+SomaFM Beat Blender	https://ice1.somafm.com/beatblender-128-mp3	deep house	0
+SomaFM Space Station	https://ice1.somafm.com/spacestation-128-mp3	electronica	0
+SomaFM Indie Pop Rocks	https://ice1.somafm.com/indiepop-128-mp3	indie pop	0
+SomaFM Underground 80s	https://ice1.somafm.com/u80s-128-mp3	synth / new wave	0
+SomaFM DEF CON Radio	https://ice1.somafm.com/defcon-128-mp3	hacker electronica	0
+SomaFM Metal Detector	https://ice1.somafm.com/metal-128-mp3	metal	0
+SomaFM Sonic Universe	https://ice1.somafm.com/sonicuniverse-128-mp3	jazz fusion	0
+SomaFM Boot Liquor	https://ice1.somafm.com/bootliquor-128-mp3	americana	0
+SomaFM Left Coast 70s	https://ice1.somafm.com/seventies-128-mp3	70s rock	0
+SomaFM PopTron	https://ice1.somafm.com/poptron-128-mp3	electro pop	0
+SomaFM The Trip	https://ice1.somafm.com/thetrip-128-mp3	progressive	0
+SomaFM Fluid	https://ice1.somafm.com/fluid-128-mp3	instrumental hip hop	0
+SomaFM Covers	https://ice1.somafm.com/covers-128-mp3	cover versions	0
+SomaFM Mission Control	https://ice2.somafm.com/missioncontrol-128-mp3	nasa ambient	0
+Radio Paradise Main	https://stream.radioparadise.com/mp3-192	eclectic rock	1
+Radio Paradise Mellow	https://stream.radioparadise.com/mellow-192	mellow mix	0
+Radio Paradise Rock	https://stream.radioparadise.com/rock-192	rock mix	0
+Radio Paradise Global	https://stream.radioparadise.com/global-192	world / groove	0
+FIP	https://icecast.radiofrance.fr/fip-midfi.mp3	eclectic	1
+FIP Jazz	https://icecast.radiofrance.fr/fipjazz-midfi.mp3	jazz	0
+FIP Groove	https://icecast.radiofrance.fr/fipgroove-midfi.mp3	groove / soul	0
+FIP Rock	https://icecast.radiofrance.fr/fiprock-midfi.mp3	rock	0
+FIP Pop	https://icecast.radiofrance.fr/fippop-midfi.mp3	pop	0
+FIP Electro	https://icecast.radiofrance.fr/fipelectro-midfi.mp3	electro	0
+France Inter	https://icecast.radiofrance.fr/franceinter-midfi.mp3	talk / culture	0
+KEXP Seattle	https://kexp-mp3-128.streamguys1.com/kexp128.mp3	alternative	0
+WFMU Freeform	https://stream0.wfmu.org/freeform-128k	freeform	0
+NTS Radio 1	https://stream-relay-geo.ntslive.net/stream	underground	0
+NTS Radio 2	https://stream-relay-geo.ntslive.net/stream2	underground	0
+Radio Swiss Jazz	https://stream.srg-ssr.ch/m/rsj/mp3_128	jazz	0
+Radio Swiss Classic	https://stream.srg-ssr.ch/m/rsc_de/mp3_128	classical	0
+Radio Swiss Pop	https://stream.srg-ssr.ch/m/rsp/mp3_128	pop	0
+Classic FM	https://media-ssl.musicradio.com/ClassicFMMP3	classical	0
+Cadena SER	https://21223.live.streamtheworld.com/CADENASER.mp3	es / talk	0
+Rock FM	https://rockfm-cope.flumotion.com/playlist.m3u8	es / rock	0
+Lo-Fi Radio	https://stream.laut.fm/lofi	lofi beats	0

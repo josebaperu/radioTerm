@@ -29,7 +29,7 @@ public final class RadioApp {
 
     private final Path configDir = configDirectory();
     private final Settings settings = new Settings(configDir.resolve("config.properties"));
-    private final StationLibrary library = new StationLibrary(configDir.resolve("stations.tsv"));
+    private final StationLibrary library = createLibrary(configDir);
     private final Player player = new Player();
 
     private final List<Integer> visible = new ArrayList<>();
@@ -63,6 +63,40 @@ public final class RadioApp {
                 ? Path.of(xdg)
                 : Path.of(System.getProperty("user.home"), ".config");
         return base.resolve("tuner");
+    }
+
+    /**
+     * TUNER_STATIONS, when set, replaces both tiers: that file is read and
+     * written directly. Otherwise the user copy wins over the source tree one.
+     */
+    private static StationLibrary createLibrary(Path configDir) {
+        String override = System.getenv("TUNER_STATIONS");
+        if (override != null && !override.isBlank()) {
+            return new StationLibrary(Path.of(override), null);
+        }
+        return new StationLibrary(configDir.resolve("stations.tsv"), projectStationsFile());
+    }
+
+    /**
+     * Finds the stations.tsv that ships with the source tree: the working
+     * directory first, then upwards from wherever our classes were loaded
+     * (target/classes when run from an IDE, target/tuner.jar otherwise).
+     */
+    private static Path projectStationsFile() {
+        Path here = Path.of("stations.tsv").toAbsolutePath();
+        if (java.nio.file.Files.exists(here)) return here;
+
+        try {
+            Path code = Path.of(RadioApp.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            Path dir = java.nio.file.Files.isDirectory(code) ? code : code.getParent();
+            for (int up = 0; dir != null && up < 4; up++, dir = dir.getParent()) {
+                Path candidate = dir.resolve("stations.tsv");
+                if (java.nio.file.Files.exists(candidate)) return candidate;
+            }
+        } catch (Exception ignored) {
+            // Running from somewhere we cannot introspect; the bundled copy covers it.
+        }
+        return null;
     }
 
     private void loadSettings() {
@@ -196,7 +230,9 @@ public final class RadioApp {
                       --no-autoplay     start without resuming the last station
                   -h, --help            show this help
 
-                stations:  ~/.config/tuner/stations.tsv
+                stations:  stations.tsv in the source tree, overridden by
+                           ~/.config/tuner/stations.tsv once you edit the list
+                           (or point TUNER_STATIONS at a file of your own)
                 settings:  ~/.config/tuner/config.properties""");
     }
 

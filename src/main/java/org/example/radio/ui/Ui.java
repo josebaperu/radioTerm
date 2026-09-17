@@ -50,7 +50,7 @@ public final class Ui {
         drawEqualizer(s, app, 0, mainTop + mainH, w, eqPanelH, eqRows);
         drawStatus(s, app, h - 2, w);
         drawFooter(s, app, h - 1, w);
-        if (app.showHelp()) drawHelp(s, w, h);
+        if (app.showHelp()) drawHelp(s, app, w, h);
     }
 
     /** Number of station rows the current layout offers; used for scrolling. */
@@ -400,7 +400,7 @@ public final class Ui {
         s.putClipped(1, y, keys, w - 2, Theme.FAINT);
     }
 
-    private static void drawHelp(Screen s, int w, int h) {
+    private static void drawHelp(Screen s, RadioApp app, int w, int h) {
         String[] lines = {
                 "STATIONS",
                 "  ↑ / ↓ / j / k     move selection        ⏎          tune in",
@@ -419,7 +419,10 @@ public final class Ui {
                 "SOUND",
                 "  + / -             volume                m          mute",
                 "",
-                "  q                 quit          settings live in ~/.config/tuner"
+                "  q                 quit",
+                "",
+                "STATIONS FILE",
+                "  " + app.library().sourceLabel()
         };
         int boxW = Math.min(w - 4, 72);
         int boxH = Math.min(h - 4, lines.length + 4);
