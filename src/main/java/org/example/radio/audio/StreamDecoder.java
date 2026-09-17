@@ -16,7 +16,11 @@ public final class StreamDecoder implements AutoCloseable {
 
     private static final Pattern META_LINE = Pattern.compile("^\\s{2,}(icy-[a-z]+|StreamTitle)\\s*:\\s*(.*)$");
     private static final Pattern TITLE_UPDATE = Pattern.compile("Metadata update for StreamTitle:\\s*(.*)$");
-    private static final Pattern AUDIO_LINE = Pattern.compile("Audio:\\s*([A-Za-z0-9_]+).*?(\\d+)\\s*Hz.*?(\\d+)\\s*kb/s");
+    // HLS input lines often carry no bitrate, so that group is optional. Our own
+    // pcm_s16le output line matches this shape too and must be ignored.
+    private static final Pattern AUDIO_LINE =
+            Pattern.compile("Audio:\\s*([A-Za-z0-9_]+).*?(\\d+)\\s*Hz(?:.*?(\\d+)\\s*kb/s)?");
+    private static final String OUTPUT_CODEC = "pcm_s16le";
 
     private final Process process;
     private final InputStream pcm;
@@ -94,7 +98,7 @@ public final class StreamDecoder implements AutoCloseable {
             String key = meta.group(1);
             String value = clean(meta.group(2));
             switch (key) {
-                case "icy-name" -> { if (info.icyName.isEmpty()) info.icyName = value; }
+                case "icy-name" -> { if (info.icyName.isEmpty() && isRealName(value)) info.icyName = value; }
                 case "icy-genre" -> { if (info.icyGenre.isEmpty()) info.icyGenre = value; }
                 case "icy-br" -> { if (info.bitrate.isEmpty()) info.bitrate = value + " kbps"; }
                 case "StreamTitle" -> { if (info.title.isEmpty()) info.title = value; }
@@ -103,10 +107,10 @@ public final class StreamDecoder implements AutoCloseable {
             return;
         }
         Matcher audio = AUDIO_LINE.matcher(raw);
-        if (audio.find() && info.codec.isEmpty()) {
+        if (audio.find() && info.codec.isEmpty() && !audio.group(1).equalsIgnoreCase(OUTPUT_CODEC)) {
             info.codec = audio.group(1).toUpperCase();
             info.sampleRate = audio.group(2);
-            if (info.bitrate.isEmpty()) info.bitrate = audio.group(3) + " kbps";
+            if (info.bitrate.isEmpty() && audio.group(3) != null) info.bitrate = audio.group(3) + " kbps";
             return;
         }
         String lower = raw.toLowerCase();
@@ -116,6 +120,13 @@ public final class StreamDecoder implements AutoCloseable {
                 info.error = clean(raw.replaceAll("^\\[[^]]*]\\s*", ""));
             }
         }
+    }
+
+    /** Some servers put the mount filename in icy-name; that is not worth showing. */
+    private static boolean isRealName(String value) {
+        String lower = value.toLowerCase();
+        boolean looksLikeFile = lower.matches(".*\\.(mp3|aac|ogg|m3u8|flac)$") && !lower.contains(" ");
+        return !value.isBlank() && !looksLikeFile;
     }
 
     private static String clean(String s) {

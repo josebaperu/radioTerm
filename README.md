@@ -2,18 +2,26 @@
 
 Internet radio in a terminal, with a real ten band equalizer.
 
-```
-./tuner
-```
+![tuner playing Radio Paradise with the Pop preset applied](docs/screenshot.png)
 
 ffmpeg decodes the stream; everything after that is plain Java — the filter
 bank, the spectrum analyser and the interface. No third party libraries.
+
+**Author:** Claude (Opus 5), written with Claude Code.
 
 ## Requirements
 
 - Java 21+
 - ffmpeg on `PATH` (or set `TUNER_FFMPEG` to its location)
 - a terminal that speaks 256 colours and UTF-8, at least 62x18
+
+## Run it
+
+```bash
+./tuner
+```
+
+The launcher builds the jar on first run, then starts the app in your terminal.
 
 ## Keys
 
@@ -30,7 +38,7 @@ bank, the spectrum analyser and the interface. No third party libraries.
 
 | Equalizer (`tab` switches panels) | |
 |---|---|
-| `←` `→` or `0`-`9` | select a band |
+| `←` `→` or `0`-`9` | select a band — the active slider turns white |
 | `↑` `↓` | band gain, ±1 dB up to ±12 |
 | `[` `]` | cycle presets |
 | `e` | bypass the filter bank |
@@ -52,12 +60,29 @@ tuner --play "FIP Jazz"      tune by name, list number, or stream url
 tuner --no-autoplay          do not resume the last station
 ```
 
+## Stations
+
+Seventy-seven ship in `stations.tsv`, every url verified against its live stream:
+
+| network | channels |
+|---|---|
+| [Jazz Radio](https://www.jazzradio.fr/) | 35 — main plus every themed webradio |
+| [OUI FM](https://www.ouifm.fr/) | 19 — main plus the rock webradios |
+| [FIP](https://www.radiofrance.fr/fip) | 10 — FIP and its sub-channels |
+| [BBC](https://www.bbc.com/audio) | 6 — Radio 1, 1Xtra, 2, 3, 3 Unwind, 6 Music |
+| [Radio Paradise](https://radioparadise.com/) | 4 — Main, Mellow, Rock, Global |
+| [Radio Swiss](https://www.radioswissjazz.ch/) | 3 — Jazz, Classic, Pop |
+
+The OUI FM and BBC urls were resolved through the [radio.net](https://www.radio.es/)
+directory API, which lists plain Icecast mounts for the OUI FM webradios and
+the BBC's non-UK syndication feeds. The BBC streams are HE-AAC over HLS and
+carry no ICY metadata, so they show the station name but no track title.
+
 ## Files
 
 The station list lives in the source tree as `stations.tsv` — tab separated,
-`name`, `url`, `genre`, `favourite`, with `#` comments. Forty-one stations ship
-in it (SomaFM, Radio Paradise, FIP, KEXP, NTS, WFMU, Radio Swiss, Classic FM
-and others). Edit it to change the defaults everyone gets.
+`name`, `url`, `genre`, `favourite`, with `#` comments. Edit it to change the
+defaults everyone gets.
 
 At startup the list is resolved in this order:
 
@@ -94,3 +119,19 @@ stage keeps heavy boosts from clipping.
 Track titles come from two places: ffmpeg reports ICY metadata changes, and a
 side connection asks the server for the current `StreamTitle` so the first
 track of a session shows up too. Dropped streams reconnect with a backoff.
+
+The interface is drawn straight to the terminal: a double buffered cell grid
+diffed per row, 256 colour output, raw mode via `stty`, and no curses.
+
+## Layout
+
+```
+┌ header ─────────────────────────────────────────┐
+│ stations          │ now playing                 │  top half
+│                   │ spectrum                    │
+├───────────────────┴─────────────────────────────┤
+│ equalizer                                       │  bottom half
+├─────────────────────────────────────────────────┤
+│ volume · buffer · messages                      │
+└ keys ───────────────────────────────────────────┘
+```
