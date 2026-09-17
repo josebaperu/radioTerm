@@ -19,6 +19,14 @@ import java.util.List;
 public final class StationLibrary {
 
     private static final String BUNDLED = "/stations.tsv";
+    /** Rewritten on every save so a hand edited list keeps its documentation. */
+    private static final String FILE_HEADER = """
+            # tuner station list
+            # name<TAB>url<TAB>genre<TAB>favorite(0/1)
+            #
+            # Written by tuner. Lines starting with # are ignored, fields are
+            # separated by a single tab, and the last column marks favourites.
+            """.replaceAll("(?m)^ +", "");
 
     private final Path userFile;
     private final Path projectFile;
@@ -130,7 +138,7 @@ public final class StationLibrary {
         if (userFile == null) return;
         try {
             Files.createDirectories(userFile.getParent());
-            StringBuilder sb = new StringBuilder("# name\turl\tgenre\tfavorite\n");
+            StringBuilder sb = new StringBuilder(FILE_HEADER);
             for (Station s : stations) {
                 sb.append(s.name()).append('\t').append(s.url()).append('\t')
                         .append(s.genre()).append('\t').append(s.favorite() ? '1' : '0').append('\n');
