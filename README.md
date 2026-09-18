@@ -147,3 +147,6 @@ diffed per row, 256 colour output, raw mode via `stty`, and no curses.
 │ volume · buffer · messages                      │
 └ keys ───────────────────────────────────────────┘
 ```
+ffmpeg: for mac
+
+https://deolaha.ca/pub/ffmpeg/
