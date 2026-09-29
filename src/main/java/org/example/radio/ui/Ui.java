@@ -492,7 +492,7 @@ public final class Ui {
                 "STATIONS",
                 "  ↑ / ↓ / j / k     move selection        ⏎          tune in",
                 "  PgUp / PgDn       jump a page           space      stop or resume",
-                "  n / p             next / previous       f          toggle favourite",
+                "  b / n             previous / next       f          toggle favourite",
                 "  / text            filter list           esc        clear filter",
                 "  a                 add a station         d          delete station",
                 "  s                 sort favourites first g / G      top / bottom",

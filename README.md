@@ -30,7 +30,7 @@ The launcher builds the jar on first run, then starts the app in your terminal.
 | `↑` `↓` `j` `k` | move selection |
 | `Enter` | tune in |
 | `space` | stop / resume |
-| `n` `p` | next / previous station, playing immediately |
+| `b` `n` | previous / next station, playing immediately |
 | `PgUp` `PgDn` `g` `G` | page, top, bottom |
 | `/` | filter the list, `esc` clears it |
 | `f` | favourite, `s` sorts favourites to the top |

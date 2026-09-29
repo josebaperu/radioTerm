@@ -489,12 +489,12 @@ public final class RadioApp {
                     case 'k' -> moveSelection(-1);
                     case 'g' -> selected = 0;
                     case 'G' -> selected = Math.max(0, visible.size() - 1);
-                    case 'n' -> {
-                        moveSelection(1);
+                    case 'b' -> {
+                        moveSelection(-1);
                         tuneSelected();
                     }
-                    case 'p' -> {
-                        moveSelection(-1);
+                    case 'n' -> {
+                        moveSelection(1);
                         tuneSelected();
                     }
                     case 'f' -> {
