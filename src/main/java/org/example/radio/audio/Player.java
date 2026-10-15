@@ -9,7 +9,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
 /**
- * Owns the playback pipeline: ffmpeg decode, equalizer, volume, sound card.
+ * Owns the playback pipeline: ffmpeg decode, equalizer, effects, volume, sound card.
  * One session thread runs per tuned station and reconnects on its own when a
  * stream drops.
  */
@@ -22,6 +22,7 @@ public final class Player implements AutoCloseable {
     private static final int LINE_BUFFER_BYTES = SAMPLE_RATE * 4 / 4; // ~250 ms
 
     private final Equalizer equalizer = new Equalizer(SAMPLE_RATE);
+    private final Effects effects = new Effects(SAMPLE_RATE);
     private final SpectrumAnalyzer spectrum = new SpectrumAnalyzer(SAMPLE_RATE);
     private final StreamInfo info = new StreamInfo();
 
@@ -35,6 +36,10 @@ public final class Player implements AutoCloseable {
 
     public Equalizer equalizer() {
         return equalizer;
+    }
+
+    public Effects effects() {
+        return effects;
     }
 
     public SpectrumAnalyzer spectrum() {
@@ -87,7 +92,7 @@ public final class Player implements AutoCloseable {
                 || state == PlaybackState.BUFFERING || state == PlaybackState.RECONNECTING;
     }
 
-    /** Linear gain applied after the filter bank. */
+    /** Linear gain applied after the effect chain, just before the limiter. */
     private float gain() {
         if (muted) return 0f;
         double v = volume / 100.0;
@@ -101,6 +106,7 @@ public final class Player implements AutoCloseable {
         lastError = "";
         state = PlaybackState.CONNECTING;
         equalizer.flush();
+        effects.flush();
         session = new Session(target);
         session.start();
     }
@@ -201,6 +207,8 @@ public final class Player implements AutoCloseable {
             byte[] raw = new byte[BLOCK_BYTES];
             float[] samples = new float[FRAMES_PER_BLOCK * 2];
             boolean produced = false;
+            equalizer.flush();
+            effects.flush();
             try (StreamDecoder d = new StreamDecoder(target.url(), SAMPLE_RATE, info)) {
                 decoder = d;
                 DataLine.Info lineInfo = new DataLine.Info(SourceDataLine.class, FORMAT);
@@ -216,7 +224,8 @@ public final class Player implements AutoCloseable {
                         if (filled <= 0) break;
                         int frames = filled / 4;
                         toFloat(raw, filled, samples);
-                        equalizer.process(samples, frames * 2, gain());
+                        equalizer.process(samples, frames * 2);
+                        effects.process(samples, frames * 2, gain());
                         spectrum.feed(samples, frames * 2);
                         toBytes(samples, frames * 2, raw);
                         out.write(raw, 0, frames * 4);

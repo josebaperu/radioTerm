@@ -1,5 +1,6 @@
 package org.example.radio;
 
+import org.example.radio.audio.Effects;
 import org.example.radio.audio.EqPreset;
 import org.example.radio.audio.Equalizer;
 import org.example.radio.audio.PlaybackState;
@@ -21,7 +22,7 @@ import java.util.Locale;
 /** Application state, key handling and the render loop. */
 public final class RadioApp {
 
-    public enum Focus { STATIONS, EQUALIZER }
+    public enum Focus { STATIONS, EQUALIZER, EFFECTS }
 
     public enum Mode { NORMAL, SEARCH, ADD_NAME, ADD_URL, CONFIRM_DELETE }
 
@@ -43,6 +44,7 @@ public final class RadioApp {
     private String inputBuffer = "";
     private String pendingName = "";
     private int eqBand;
+    private int effectIndex;
     private boolean showHelp;
     private boolean running = true;
     private long tick;
@@ -107,9 +109,10 @@ public final class RadioApp {
     private void loadSettings() {
         player.setVolume(settings.getInt("volume", 70));
         Equalizer eq = player.equalizer();
-        eq.setGains(settings.getInts("eq.gains", new int[Equalizer.BANDS]));
+        eq.setGains(Equalizer.gainsFromSaved(settings.getString("eq.gains", "")));
         eq.setPreamp(settings.getInt("eq.preamp", 0));
         eq.setEnabled(settings.getBool("eq.enabled", true));
+        player.effects().read(settings);
         String last = settings.getString("station.last", "");
         int idx = library.indexOfUrl(last);
         if (idx >= 0) {
@@ -123,6 +126,7 @@ public final class RadioApp {
         settings.setInts("eq.gains", player.equalizer().gains());
         settings.set("eq.preamp", player.equalizer().preamp());
         settings.set("eq.enabled", player.equalizer().isEnabled());
+        player.effects().write(settings);
         if (player.station() != null) settings.set("station.last", player.station().url());
         settings.save();
     }
@@ -229,7 +233,7 @@ public final class RadioApp {
 
     private static void printUsage() {
         System.out.println("""
-                tuner - terminal internet radio with a 10 band equalizer
+                tuner - terminal internet radio with a 5 band equalizer
 
                 usage: tuner [options]
                   -l, --list            print the station list and exit
@@ -282,11 +286,24 @@ public final class RadioApp {
             if (!showHelp) return;
         }
 
+        if (key.type() == Key.Type.TAB) {
+            focus = switch (focus) {
+                case STATIONS -> Focus.EQUALIZER;
+                case EQUALIZER -> Focus.EFFECTS;
+                case EFFECTS -> Focus.STATIONS;
+            };
+            return;
+        }
+        if (key.type() == Key.Type.SHIFT_TAB) {
+            focus = switch (focus) {
+                case STATIONS -> Focus.EFFECTS;
+                case EFFECTS -> Focus.EQUALIZER;
+                case EQUALIZER -> Focus.STATIONS;
+            };
+            return;
+        }
+
         switch (key.type()) {
-            case TAB, SHIFT_TAB -> {
-                focus = focus == Focus.STATIONS ? Focus.EQUALIZER : Focus.STATIONS;
-                return;
-            }
             case ESCAPE -> {
                 if (!filter.isEmpty()) {
                     filter = "";
@@ -323,7 +340,7 @@ public final class RadioApp {
             note(player.isMuted() ? "muted" : "unmuted");
             return;
         }
-        if (key.is(' ')) {
+        if (key.is(' ') && focus != Focus.EFFECTS) {
             player.toggle();
             note(player.isActive() ? "resuming" : "stopped");
             return;
@@ -358,10 +375,10 @@ public final class RadioApp {
             return;
         }
 
-        if (focus == Focus.EQUALIZER) {
-            handleEqualizerKey(key);
-        } else {
-            handleStationKey(key);
+        switch (focus) {
+            case EQUALIZER -> handleEqualizerKey(key);
+            case EFFECTS -> handleEffectsKey(key);
+            case STATIONS -> handleStationKey(key);
         }
     }
 
@@ -385,7 +402,7 @@ public final class RadioApp {
             return;
         }
 
-        Ui.Hit hit = Ui.hitTest(lastWidth, lastHeight, event.x(), event.y());
+        Ui.Hit hit = Ui.hitTest(lastWidth, lastHeight, event.x(), event.y(), effectIndex);
         if (event.isWheel()) {
             handleWheel(event, hit);
             return;
@@ -402,6 +419,14 @@ public final class RadioApp {
                         player.equalizer().setGain(eqBand, hit.value());
                         draggingBand = eqBand;
                     }
+                }
+            }
+            case EFFECT -> {
+                focus = Focus.EFFECTS;
+                if (hit.index() >= 0) {
+                    effectIndex = hit.index();
+                    player.effects().toggle(effectIndex);
+                    note(player.effects().describe(effectIndex));
                 }
             }
             case VOLUME -> {
@@ -424,6 +449,13 @@ public final class RadioApp {
                 if (hit.index() >= 0) eqBand = hit.index();
                 Equalizer eq = player.equalizer();
                 eq.setGain(eqBand, eq.gain(eqBand) + direction);
+            }
+            case EFFECT -> {
+                focus = Focus.EFFECTS;
+                if (hit.index() >= 0) effectIndex = hit.index();
+                Effects fx = player.effects();
+                fx.nudge(effectIndex, direction);
+                note(fx.describe(effectIndex));
             }
             case VOLUME -> {
                 player.adjustVolume(direction * 5);
@@ -464,12 +496,48 @@ public final class RadioApp {
                 else if (c == 'l') eqBand = (eqBand + 1) % Equalizer.BANDS;
                 else if (c == 'k') eq.setGain(eqBand, eq.gain(eqBand) + 1);
                 else if (c == 'j') eq.setGain(eqBand, eq.gain(eqBand) - 1);
-                else if (c >= '0' && c <= '9') eqBand = c == '0' ? 9 : c - '1';
+                else if (c >= '1' && c <= '5') eqBand = c - '1';
             }
             default -> {
                 // Nothing else is bound in this panel.
             }
         }
+    }
+
+    private void handleEffectsKey(Key key) {
+        Effects fx = player.effects();
+        int n = Effects.COUNT;
+        switch (key.type()) {
+            case UP -> effectIndex = (effectIndex + n - 1) % n;
+            case DOWN -> effectIndex = (effectIndex + 1) % n;
+            case LEFT -> adjustEffect(fx, -1);
+            case RIGHT -> adjustEffect(fx, 1);
+            case HOME -> effectIndex = 0;
+            case END -> effectIndex = n - 1;
+            case ENTER -> {
+                fx.toggle(effectIndex);
+                note(fx.describe(effectIndex));
+            }
+            case CHAR -> {
+                switch (key.ch()) {
+                    case 'k' -> effectIndex = (effectIndex + n - 1) % n;
+                    case 'j' -> effectIndex = (effectIndex + 1) % n;
+                    case 'h' -> adjustEffect(fx, -1);
+                    case 'l' -> adjustEffect(fx, 1);
+                    case ' ' -> {
+                        fx.toggle(effectIndex);
+                        note(fx.describe(effectIndex));
+                    }
+                    default -> { }
+                }
+            }
+            default -> { }
+        }
+    }
+
+    /** ←→ changes bass, width or the reverb room. Other rows have nothing to move. */
+    private void adjustEffect(Effects fx, int direction) {
+        if (fx.adjust(effectIndex, direction)) note(fx.describe(effectIndex));
     }
 
     private void handleStationKey(Key key) {
@@ -725,6 +793,10 @@ public final class RadioApp {
 
     public int eqBand() {
         return eqBand;
+    }
+
+    public int effectIndex() {
+        return effectIndex;
     }
 
     public boolean showHelp() {

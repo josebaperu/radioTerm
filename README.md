@@ -1,6 +1,7 @@
 # tuner
 
-Internet radio in a terminal, with a real ten band equalizer.
+Internet radio in a terminal, with a five band equalizer and a set of
+audio effects.
 
 ![tuner playing Radio Paradise with the Pop preset applied](docs/screenshot.png)
 
@@ -36,14 +37,23 @@ The launcher builds the jar on first run, then starts the app in your terminal.
 | `f` | favourite, `s` sorts favourites to the top |
 | `a` `d` | add a station, delete one |
 
-| Equalizer (`tab` switches panels) | |
+| Equalizer (`tab` cycles stations, equalizer, effects) | |
 |---|---|
-| `←` `→` or `0`-`9` | select a band — the active slider turns white |
+| `←` `→` or `1`-`5` | select a band — the active slider turns white |
 | `↑` `↓` | band gain, ±1 dB up to ±12 |
 | `[` `]` | cycle presets |
 | `e` | bypass the filter bank |
 | `r` | back to flat |
 | `<` `>` | preamp |
+
+| Effects | |
+|---|---|
+| `↑` `↓` | select bass, width, surround, crossfeed, reverb or the leveler |
+| `space` | toggle the selected effect |
+| `←` `→` | bass strength, stereo width, or the reverb room (Room, Club, Hall) |
+
+Surround and crossfeed are headphone effects. Surround already includes a
+crossfeed, so that row rests while surround is on.
 
 | Anywhere | |
 |---|---|
@@ -56,7 +66,8 @@ The launcher builds the jar on first run, then starts the app in your terminal.
 |---|---|
 | click | select a station row, or pick an equalizer band |
 | click twice | tune in to the row under the pointer |
-| wheel | scrolls the list, or nudges the band or volume under the pointer |
+| click an effect | toggles it |
+| wheel | scrolls the list, or adjusts the band, effect or volume under the pointer |
 | drag | a slider follows the pointer, even outside its column |
 
 Mouse tracking means the terminal stops handling plain drag-to-select; hold
@@ -109,24 +120,27 @@ Edits made in the app always go to the user copy, so the source tree file stays
 pristine. Delete `~/.config/tuner/stations.tsv` to go back to the shipped list.
 Press `?` in the app to see which file is in use.
 
-Volume, equalizer curve and last station are kept separately in
-`~/.config/tuner/config.properties`. Both paths honour `XDG_CONFIG_HOME`.
+Volume, the equalizer curve, the effect settings and the last station are
+kept separately in `~/.config/tuner/config.properties`. Both paths honour
+`XDG_CONFIG_HOME`. A curve saved by the old ten band equalizer is left
+behind and the five band equalizer starts flat.
 
 Any stream url ffmpeg can open works — MP3, AAC, Icecast, Shoutcast or HLS.
 
 ## How it works
 
 ```
-ffmpeg ──PCM s16le──▶ float ──▶ 10x biquad peaking filters (per channel)
-                                   │
-                                   ├──▶ preamp, volume, soft limiter ──▶ sound card
-                                   └──▶ 2048 point FFT ──▶ spectrum bars
+ffmpeg ──PCM s16le──▶ float ──▶ 5-band EQ ──▶ effects ──▶ volume, limiter ──▶ sound card
+                                              │                    │
+                                              │                    └──▶ spectrum bars
+                                              └── bass, width, surround or crossfeed, reverb, leveler
 ```
 
-Each equalizer band is an RBJ peaking biquad at roughly one octave of
-bandwidth, recalculated when a slider moves, so changes are audible
-immediately without re-opening the stream. A soft knee limiter after the gain
-stage keeps heavy boosts from clipping.
+The equalizer is a low shelf at 60 Hz, peaks at 230 Hz, 910 Hz and 3.6 kHz,
+and a high shelf at 14 kHz. Each band is an RBJ biquad, recalculated when a
+slider moves, so changes are audible immediately without re-opening the
+stream. The effects are the same chain as aaradio, without mono and without
+Android's spatializer. A peak limiter after the volume keeps boosts from clipping.
 
 Track titles come from two places: ffmpeg reports ICY metadata changes, and a
 side connection asks the server for the current `StreamTitle` so the first
@@ -142,7 +156,7 @@ diffed per row, 256 colour output, raw mode via `stty`, and no curses.
 │ stations          │ now playing                 │  top half
 │                   │ spectrum                    │
 ├───────────────────┴─────────────────────────────┤
-│ equalizer                                       │  bottom half
+│ equalizer                  │ effects          │  bottom half
 ├─────────────────────────────────────────────────┤
 │ volume · buffer · messages                      │
 └ keys ───────────────────────────────────────────┘

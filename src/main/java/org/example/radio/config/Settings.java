@@ -5,7 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
-/** Persisted user state: volume, equalizer curve and the last station played. */
+/** Persisted user state: volume, equalizer curve, effects and the last station played. */
 public final class Settings {
 
     private final Path file;
@@ -27,6 +27,14 @@ public final class Settings {
     public int getInt(String key, int fallback) {
         try {
             return Integer.parseInt(props.getProperty(key, String.valueOf(fallback)).trim());
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    public double getDouble(String key, double fallback) {
+        try {
+            return Double.parseDouble(props.getProperty(key, String.valueOf(fallback)).trim());
         } catch (NumberFormatException e) {
             return fallback;
         }
